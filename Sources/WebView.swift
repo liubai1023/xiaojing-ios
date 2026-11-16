@@ -29,6 +29,9 @@ struct WebView: UIViewRepresentable {
         web.scrollView.contentInsetAdjustmentBehavior = .never
 
         handler.webView = web
+        handler.locator.webView = web
+        // 录音权限要靠 uiDelegate 放行，否则网页里 getUserMedia 直接失败
+        web.uiDelegate = handler
         web.load(URLRequest(url: url))
         return web
     }
