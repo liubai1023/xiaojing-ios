@@ -1,0 +1,43 @@
+name: build-ipa
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 装 XcodeGen
+        run: brew install xcodegen
+
+      - name: 生成 Xcode 工程
+        run: xcodegen generate
+
+      - name: 编译（不签名）
+        run: |
+          xcodebuild \
+            -project Xiaojing.xcodeproj \
+            -scheme Xiaojing \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: 打 ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/Xiaojing.app Payload/
+          zip -qr Xiaojing-unsigned.ipa Payload
+          ls -lh Xiaojing-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Xiaojing-unsigned-ipa
+          path: Xiaojing-unsigned.ipa
