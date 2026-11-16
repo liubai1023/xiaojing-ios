@@ -57,7 +57,8 @@ struct RootView: View {
             .padding(.trailing, 8)
         }
         .photosPicker(isPresented: $showPicker, selection: $picked, matching: .images)
-        .onChange(of: picked) { _, item in
+        // iOS 16 只有单参数的 onChange；两参数版本是 iOS 17 的
+        .onChange(of: picked) { item in
             guard let item else { return }
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self) {
