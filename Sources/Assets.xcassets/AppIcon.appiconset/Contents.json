@@ -1,0 +1,17 @@
+{
+  "images" : [
+    { "filename" : "i40.png", "idiom" : "iphone", "scale" : "2x", "size" : "20x20" },
+    { "filename" : "i60.png", "idiom" : "iphone", "scale" : "3x", "size" : "20x20" },
+    { "filename" : "i58.png", "idiom" : "iphone", "scale" : "2x", "size" : "29x29" },
+    { "filename" : "i87.png", "idiom" : "iphone", "scale" : "3x", "size" : "29x29" },
+    { "filename" : "i80.png", "idiom" : "iphone", "scale" : "2x", "size" : "40x40" },
+    { "filename" : "i120.png", "idiom" : "iphone", "scale" : "3x", "size" : "40x40" },
+    { "filename" : "i120.png", "idiom" : "iphone", "scale" : "2x", "size" : "60x60" },
+    { "filename" : "i180.png", "idiom" : "iphone", "scale" : "3x", "size" : "60x60" },
+    { "filename" : "i76.png", "idiom" : "ipad", "scale" : "1x", "size" : "76x76" },
+    { "filename" : "i152.png", "idiom" : "ipad", "scale" : "2x", "size" : "76x76" },
+    { "filename" : "i167.png", "idiom" : "ipad", "scale" : "2x", "size" : "83.5x83.5" },
+    { "filename" : "icon-1024.png", "idiom" : "ios-marketing", "scale" : "1x", "size" : "1024x1024" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}
