@@ -95,10 +95,11 @@ struct RootView: View {
     }
 }
 
-/// 与网页通信：网页点「＋」通知我们开相册/相机；我们回传图片。
-final class WebBridge: NSObject, WKScriptMessageHandler {
+/// 与网页通信：网页点「＋」通知我们开相册/相机；要位置时去取一次；我们回传图片和坐标。
+final class WebBridge: NSObject, WKScriptMessageHandler, WKUIDelegate {
     var onPickPhoto: (() -> Void)?
     var onTakePhoto: (() -> Void)?
+    let locator = LocationBridge()
     weak var webView: WKWebView?
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -106,8 +107,18 @@ final class WebBridge: NSObject, WKScriptMessageHandler {
         switch type {
         case "pick": onPickPhoto?()
         case "camera": onTakePhoto?()
+        case "location": locator.request()
         default: break
         }
+    }
+
+    /// 网页要录音（她说话的麦克风在网页里）时直接放行，系统权限由 Info.plist 里的说明负责
+    func webView(_ webView: WKWebView,
+                 requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+                 initiatedByFrame frame: WKFrameInfo,
+                 type: WKMediaCaptureType,
+                 decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        decisionHandler(.grant)
     }
 
     func sendImage(_ dataURL: String) {
