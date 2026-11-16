@@ -1,28 +1,39 @@
 import SwiftUI
 import WebKit
 
-/// 全屏网页容器。reloadToken 变了就重新加载（改完地址、或者想刷新时）。
+/// 全屏网页容器 + 与网页通信（网页点「＋」时开相册/相机，选完把图回传给网页）
 struct WebView: UIViewRepresentable {
     let url: URL
     let reloadToken: UUID
+    @Binding var bridge: WebBridge?
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
         config.websiteDataStore = .default()
         config.defaultWebpagePreferences.allowsContentJavaScript = true
+
+        let handler = WebBridge()
+        config.userContentController.add(handler, name: "native")
+        DispatchQueue.main.async { bridge = handler }
+
         let web = WKWebView(frame: .zero, configuration: config)
         web.scrollView.keyboardDismissMode = .interactive
         web.scrollView.bounces = true
         web.allowsBackForwardNavigationGestures = false
         web.isOpaque = false
-        web.backgroundColor = .black
+        let bg = UIColor(red: 0.05, green: 0.06, blue: 0.07, alpha: 1)
+        web.backgroundColor = bg
+        web.scrollView.backgroundColor = bg
+        // 别让系统自动加内边距，键盘弹起时页面自己撑满，避免中间露一块黑
+        web.scrollView.contentInsetAdjustmentBehavior = .never
+
+        handler.webView = web
         web.load(URLRequest(url: url))
         return web
     }
 
     func updateUIView(_ web: WKWebView, context: Context) {
-        // 地址变了或者被要求刷新：重新加载一次
         let stamp = "\(url.absoluteString)#\(reloadToken.uuidString)"
         if context.coordinator.lastStamp != stamp {
             context.coordinator.lastStamp = stamp
@@ -60,7 +71,7 @@ struct SetupView: View {
                     SecureField("口令", text: $token)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    Text("就是网页地址里的 token= 后面那串")
+                    Text("就是网页地址里 token= 后面那串")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
