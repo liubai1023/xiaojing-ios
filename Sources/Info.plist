@@ -41,5 +41,11 @@
 	<array>
 		<string>fetch</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>拍一张照片发给小鲸</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>从相册选一张图发给小鲸</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>保存小鲸发的图片</string>
 </dict>
 </plist>
