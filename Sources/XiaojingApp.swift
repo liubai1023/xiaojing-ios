@@ -8,57 +8,51 @@ struct XiaojingApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(settings)
+                .preferredColorScheme(.dark)
         }
     }
 }
 
+/// 整个 App 就是一个全屏网页：左栏导航、聊天、朋友圈全在页面里，
+/// 以后改界面只改电脑上的网页，不用重新打包。
 struct RootView: View {
     @EnvironmentObject var settings: Settings
     @State private var showSetup = false
+    @State private var reloadToken = UUID()
 
     var body: some View {
-        TabView {
-            WebTab(path: "/chat", title: "聊天", symbol: "bubble.left.and.bubble.right.fill")
-            WebTab(path: "/feed", title: "动态", symbol: "book.closed.fill")
-            WebTab(path: "/room", title: "我们", symbol: "person.3.fill")
-        }
-        .onAppear {
-            showSetup = !settings.isConfigured
-        }
-        .sheet(isPresented: $showSetup) {
-            SetupView(isPresented: $showSetup)
-                .environmentObject(settings)
-        }
-    }
-}
+        ZStack(alignment: .topTrailing) {
+            Color(red: 0.05, green: 0.06, blue: 0.07).ignoresSafeArea()
 
-struct WebTab: View {
-    @EnvironmentObject var settings: Settings
-    let path: String
-    let title: String
-    let symbol: String
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                if settings.isConfigured {
-                    WebView(url: settings.url(for: path))
-                        .ignoresSafeArea(edges: .bottom)
-                } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "wifi.exclamationmark")
-                            .font(.largeTitle)
-                        Text("还没连上电脑")
-                            .font(.headline)
-                        Text("点右上角的齿轮，填电脑地址和口令")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+            if settings.isConfigured {
+                WebView(url: settings.url(for: "/"), reloadToken: reloadToken)
+                    .ignoresSafeArea()
+            } else {
+                VStack(spacing: 14) {
+                    Image(systemName: "wifi.exclamationmark").font(.largeTitle)
+                    Text("还没连上电脑").font(.headline)
+                    Text("点右上角齿轮，填电脑地址和口令").font(.footnote).foregroundStyle(.secondary)
+                    Button("现在设置") { showSetup = true }
+                        .buttonStyle(.borderedProminent)
                 }
             }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
+
+            Button {
+                showSetup = true
+            } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .padding(9)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .foregroundStyle(.white.opacity(0.75))
+            .padding(.top, 6)
+            .padding(.trailing, 10)
         }
-        .tabItem { Label(title, systemImage: symbol) }
+        .onAppear { showSetup = !settings.isConfigured }
+        .sheet(isPresented: $showSetup) {
+            SetupView(isPresented: $showSetup, reloadToken: $reloadToken)
+                .environmentObject(settings)
+        }
     }
 }
