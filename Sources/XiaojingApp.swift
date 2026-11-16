@@ -95,11 +95,12 @@ struct RootView: View {
     }
 }
 
-/// 与网页通信：网页点「＋」通知我们开相册/相机；要位置时去取一次；我们回传图片和坐标。
+/// 与网页通信：网页点「＋」通知我们开相册/相机；要位置时去取一次；要排闹钟时交给 AlarmBridge。
 final class WebBridge: NSObject, WKScriptMessageHandler, WKUIDelegate {
     var onPickPhoto: (() -> Void)?
     var onTakePhoto: (() -> Void)?
     let locator = LocationBridge()
+    let alarms = AlarmBridge()
     weak var webView: WKWebView?
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -108,6 +109,15 @@ final class WebBridge: NSObject, WKScriptMessageHandler, WKUIDelegate {
         case "pick": onPickPhoto?()
         case "camera": onTakePhoto?()
         case "location": locator.request()
+        case "alarm":
+            guard let id = body["id"] as? String,
+                  let text = body["text"] as? String,
+                  let at = body["at"] as? Double else { return }
+            let repeatDaily = (body["repeat"] as? String) == "daily"
+            alarms.schedule(id: id, at: at, text: text, repeatDaily: repeatDaily)
+        case "alarm-cancel":
+            guard let id = body["id"] as? String else { return }
+            alarms.cancel(id: id)
         default: break
         }
     }
