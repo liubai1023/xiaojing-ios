@@ -70,15 +70,23 @@ struct RootView: View {
             }
             .ignoresSafeArea()
         }
-        .onAppear { showSetup = !settings.isConfigured }
+        .onAppear {
+            showSetup = !settings.isConfigured
+            // 起来先 ping 一下电脑：崩没崩、有没有启动成功，这边能看见
+            if settings.isConfigured {
+                URLSession.shared.dataTask(with: settings.url(for: "/api/app/boot")).resume()
+            }
+            // 通知授权放在启动之后一秒：启动阶段调通知 API 风险大（11-17 崩过一次）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                WebBridge.current?.alarms.requestPermission()
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .xjPickPhoto)) { _ in showPicker = true }
         .onReceive(NotificationCenter.default.publisher(for: .xjTakePhoto)) { _ in showCamera = true }
         .onChange(of: scenePhase) { phase in
-            // 切到后台就开静音保活，网页才能继续轮询、才有后台通知（App 里可以关）
+            // 静音保活先关掉：这版只验证能不能正常启动，后台通知下个版本再加
             if phase == .background {
-                if BackgroundKeeper.shared.enabled { BackgroundKeeper.shared.start() }
-            } else {
-                BackgroundKeeper.shared.stop()
+                _ = BackgroundKeeper.shared.enabled
             }
         }
         .sheet(isPresented: $showSetup) {
