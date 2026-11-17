@@ -2,6 +2,7 @@ import SwiftUI
 import WebKit
 import PhotosUI
 import UIKit
+import UserNotifications
 
 @main
 struct XiaojingApp: App {
@@ -88,6 +89,16 @@ struct RootView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 WebBridge.current?.alarms.requestPermission()
             }
+            // 报一下当前通知授权状态，电脑这边能看见（省得靠猜）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                UNUserNotificationCenter.current().getNotificationSettings { setting in
+                    PushPoller.report(to: settings.url(for: "/api/app/diag"), kind: "permission", extra: [
+                        "status": setting.authorizationStatus.rawValue,
+                        "alert": setting.alertSetting.rawValue,
+                        "sound": setting.soundSetting.rawValue,
+                    ])
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .xjPickPhoto)) { _ in showPicker = true }
         .onReceive(NotificationCenter.default.publisher(for: .xjTakePhoto)) { _ in showCamera = true }
@@ -97,9 +108,14 @@ struct RootView: View {
             // 11-17 那次「装上就闪退」最可能就是启动时动了它。
             switch phase {
             case .active:
+                PushPoller.shared.stop()
                 BackgroundKeeper.shared.stop()
-            case .inactive, .background:
+            case .inactive:
                 if BackgroundKeeper.shared.enabled { BackgroundKeeper.shared.start() }
+            case .background:
+                if BackgroundKeeper.shared.enabled { BackgroundKeeper.shared.start() }
+                // 网页在后台会被挂起，改由原生接手轮询（见 PushPoller.swift）
+                PushPoller.shared.start(baseURL: settings.url(for: "/api/app/pushes"))
             @unknown default:
                 break
             }
