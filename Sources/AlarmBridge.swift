@@ -11,6 +11,9 @@ import WebKit
 ///   window.webkit.messageHandlers.native.postMessage({type:"alarm", id, at(秒), text, repeat})
 ///   window.webkit.messageHandlers.native.postMessage({type:"alarm-cancel", id})
 final class AlarmBridge: NSObject, UNUserNotificationCenterDelegate {
+    /// 后台轮询（PushPoller）也要能直接弹通知，别依赖网页那个实例还活着
+    static let shared = AlarmBridge()
+
     weak var webView: WKWebView?
     private var prepared = false
 
