@@ -78,6 +78,8 @@ struct RootView: View {
         }
         .onAppear {
             showSetup = !settings.isConfigured
+            // 上一次保活没能确认活下来（崩了）就自动关掉，别让 App 再也打不开
+            BackgroundKeeper.recoverIfNeeded()
             // 起来先 ping 一下电脑：崩没崩、有没有启动成功，这边能看见
             if settings.isConfigured {
                 URLSession.shared.dataTask(with: settings.url(for: "/api/app/boot")).resume()
@@ -91,9 +93,15 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .xjTakePhoto)) { _ in showCamera = true }
         .onReceive(NotificationCenter.default.publisher(for: .xjOpenSettings)) { _ in showSetup = true }
         .onChange(of: scenePhase) { phase in
-            // 静音保活先关掉：这版只验证能不能正常启动，后台通知下个版本再加
-            if phase == .background {
-                _ = BackgroundKeeper.shared.enabled
+            // 静音保活只在切到后台时开：启动阶段一概不碰音频会话，
+            // 11-17 那次「装上就闪退」最可能就是启动时动了它。
+            switch phase {
+            case .active:
+                BackgroundKeeper.shared.stop()
+            case .inactive, .background:
+                if BackgroundKeeper.shared.enabled { BackgroundKeeper.shared.start() }
+            @unknown default:
+                break
             }
         }
         .sheet(isPresented: $showSetup) {
