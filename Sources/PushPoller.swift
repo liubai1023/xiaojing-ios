@@ -23,6 +23,11 @@ final class PushPoller {
 
     func start(baseURL url: URL) {
         base = url
+        // 第一次跑：游标从"现在"开始，别把历史上攒的几百条全当新消息弹出来
+        if seen <= 0 {
+            seen = Date().timeIntervalSince1970 * 1000
+            UserDefaults.standard.set(seen, forKey: "xj.pushSeen")
+        }
         guard timer == nil else { return }
         let ticker = Timer(timeInterval: 10, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(ticker, forMode: .common)
@@ -60,7 +65,8 @@ final class PushPoller {
 
             var newest = self.seen
             for item in fresh {
-                let at = (item["at"] as? Double) ?? 0
+                // JSON 里的整数会解成 NSNumber，直接 as? Double 不稳，走 doubleValue
+                let at = (item["at"] as? NSNumber)?.doubleValue ?? 0
                 guard at > self.seen else { continue }
                 newest = max(newest, at)
                 let text = (item["text"] as? String) ?? ""
