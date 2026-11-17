@@ -96,10 +96,13 @@ final class PushPoller {
 
     /// 往服务端写一行诊断（App 启动探针 / 通知授权状态 / 后台心跳都走这里）
     static func report(to base: URL, kind: String, extra: [String: Any] = [:]) {
-        var components = URLComponents(url: base, resolvingAgainstBaseURL: false)
-        components?.path = "/api/app/diag"
-        components?.queryItems = (components?.queryItems ?? []).filter { $0.name == "token" }
-        guard let url = components?.url else { return }
+        // 别写成 components?.queryItems = (components?.queryItems ?? [])...，
+        // 同一句里读写同一个变量，Swift 的独占性检查会直接报错
+        guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return }
+        components.path = "/api/app/diag"
+        let kept = (components.queryItems ?? []).filter { $0.name == "token" }
+        components.queryItems = kept
+        guard let url = components.url else { return }
 
         var payload = extra
         payload["kind"] = kind
