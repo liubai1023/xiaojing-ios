@@ -76,9 +76,9 @@ struct RootView: View {
         }
         .onAppear { showSetup = !settings.isConfigured }
         .onChange(of: scenePhase) { phase in
-            // 切到后台就开静音保活，网页才能继续轮询、才有后台通知
+            // 切到后台就开静音保活，网页才能继续轮询、才有后台通知（App 里可以关）
             if phase == .background {
-                BackgroundKeeper.shared.start()
+                if BackgroundKeeper.shared.enabled { BackgroundKeeper.shared.start() }
             } else {
                 BackgroundKeeper.shared.stop()
             }
@@ -132,6 +132,8 @@ final class WebBridge: NSObject, WKScriptMessageHandler, WKUIDelegate {
             let title = (body["title"] as? String) ?? "小鲸"
             let text = (body["body"] as? String) ?? ""
             alarms.notifyNow(title: title, body: text)
+        case "keepalive":
+            BackgroundKeeper.shared.setEnabled((body["enabled"] as? Bool) ?? true)
         default: break
         }
     }
