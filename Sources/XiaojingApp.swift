@@ -33,10 +33,6 @@ struct RootView: View {
             if settings.isConfigured {
                 WebView(url: settings.url(for: "/"), reloadToken: reloadToken, bridge: $bridge)
                     .ignoresSafeArea()
-                    .onAppear {
-                        bridge?.onPickPhoto = { showPicker = true }
-                        bridge?.onTakePhoto = { showCamera = true }
-                    }
             } else {
                 VStack(spacing: 14) {
                     Image(systemName: "wifi.exclamationmark").font(.largeTitle)
@@ -75,6 +71,8 @@ struct RootView: View {
             .ignoresSafeArea()
         }
         .onAppear { showSetup = !settings.isConfigured }
+        .onReceive(NotificationCenter.default.publisher(for: .xjPickPhoto)) { _ in showPicker = true }
+        .onReceive(NotificationCenter.default.publisher(for: .xjTakePhoto)) { _ in showCamera = true }
         .onChange(of: scenePhase) { phase in
             // 切到后台就开静音保活，网页才能继续轮询、才有后台通知（App 里可以关）
             if phase == .background {
@@ -100,13 +98,21 @@ struct RootView: View {
         guard let jpeg = small.jpegData(compressionQuality: 0.82) else { return }
         let base64 = jpeg.base64EncodedString()
         await MainActor.run {
-            bridge?.sendImage("data:image/jpeg;base64,\(base64)")
+            let target = bridge ?? WebBridge.current
+            target?.sendImage("data:image/jpeg;base64,\(base64)")
         }
     }
 }
 
+extension Notification.Name {
+    static let xjPickPhoto = Notification.Name("xj.pickPhoto")
+    static let xjTakePhoto = Notification.Name("xj.takePhoto")
+}
+
 /// 与网页通信：网页点「＋」通知我们开相册/相机；要位置时去取一次；要排闹钟时交给 AlarmBridge。
 final class WebBridge: NSObject, WKScriptMessageHandler, WKUIDelegate {
+    /// 当前这一个实例：SwiftUI 的 binding 是异步绑上的，选完图那一刻可能还是 nil
+    static weak var current: WebBridge?
     var onPickPhoto: (() -> Void)?
     var onTakePhoto: (() -> Void)?
     let locator = LocationBridge()
@@ -116,8 +122,11 @@ final class WebBridge: NSObject, WKScriptMessageHandler, WKUIDelegate {
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
         switch type {
-        case "pick": onPickPhoto?()
-        case "camera": onTakePhoto?()
+        case "pick":
+            // 走通知而不是闭包：闭包是在 .onAppear 里赋的，那时 bridge 可能还没绑上
+            NotificationCenter.default.post(name: .xjPickPhoto, object: nil)
+        case "camera":
+            NotificationCenter.default.post(name: .xjTakePhoto, object: nil)
         case "location": locator.request()
         case "alarm":
             guard let id = body["id"] as? String,
