@@ -87,11 +87,28 @@ struct SetupView: View {
         NavigationStack {
             Form {
                 Section("电脑地址") {
+                    Picker("连接方式", selection: Binding(
+                        get: {
+                            if host.contains("100.") { return "tailscale" }
+                            if host.contains("192.168.") || host.contains("172.") { return "lan" }
+                            return "custom"
+                        },
+                        set: { mode in
+                            if mode == "lan" { host = "http://192.168.1.107:7788" }
+                            if mode == "tailscale" { host = "http://100.84.225.64:7788" }
+                        }
+                    )) {
+                        Text("家里·局域网").tag("lan")
+                        Text("出门·Tailscale").tag("tailscale")
+                        Text("手动填写").tag("custom")
+                    }
+                    .pickerStyle(.segmented)
+
                     TextField("192.168.1.107:7788", text: $host)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    Text("同一 WiFi 填电脑局域网 IP；出门用 Tailscale 就填 xxx.ts.net")
+                    Text("家里选「局域网」（可以关掉 Tailscale）；出门选「Tailscale」。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
