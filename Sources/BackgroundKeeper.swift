@@ -56,6 +56,13 @@ final class BackgroundKeeper {
         }
         player?.play()
         running = true
+
+        // 插标记，5 秒后确认：「保活开起来之后 App 还活着」
+        UserDefaults.standard.set("starting", forKey: Self.guardKey)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard self?.running == true else { return }
+            UserDefaults.standard.set("ok", forKey: Self.guardKey)
+        }
     }
 
     func stop() {
@@ -68,10 +75,22 @@ final class BackgroundKeeper {
     // MARK: - 开关（App 里可以关掉，省电）
 
     private let enabledKey = "xj.keepalive"
+    /// 上次「准备保活」插的标记：5 秒后还活着才算确认，没确认就等下次启动自动关掉
+    private static let guardKey = "xj.keepalive.guard"
 
     var enabled: Bool {
         if UserDefaults.standard.object(forKey: enabledKey) == nil { return true }
         return UserDefaults.standard.bool(forKey: enabledKey)
+    }
+
+    /// 后台音频是免费账号下唯一能「不被挂起」的办法，但也最容易一开就崩（11-17 就这样崩过一次，
+    /// 那时候连开屏都进不去）。所以开之前先插个标记，5 秒后自认活下来；
+    /// 下次启动要是还看到「没确认」，就自动把开关关掉——宁可没通知，别让 App 打不开。
+    static func recoverIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard defaults.string(forKey: guardKey) == "starting" else { return }
+        defaults.set(false, forKey: "xj.keepalive")
+        defaults.removeObject(forKey: guardKey)
     }
 
     func setEnabled(_ on: Bool) {
