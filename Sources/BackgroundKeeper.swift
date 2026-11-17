@@ -13,11 +13,36 @@ final class BackgroundKeeper {
 
     private var player: AVAudioPlayer?
     private var running = false
+    private var observing = false
+
+    /// 来电/闹钟/别的 App 抢了音频之后，结束时要自己恢复，
+    /// 不然保活就断了（直到用户再切回 App）。
+    private func observeInterruptions() {
+        guard !observing else { return }
+        observing = true
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: .main
+        ) { note in
+            guard let info = note.userInfo,
+                  let raw = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+            if type == .ended {
+                let options = (info[AVAudioSessionInterruptionOptionKey] as? UInt).map(AVAudioSession.InterruptionOptions.init(rawValue:)) ?? []
+                if options.contains(.shouldResume), self.running {
+                    self.player?.play()
+                }
+            }
+        }
+    }
 
     func start() {
         guard !running else { return }
+        observeInterruptions()
         do {
             let session = AVAudioSession.sharedInstance()
+            // .mixWithOthers：不打断别人正在放的音乐/视频，两边混着走
             try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try session.setActive(true)
         } catch {
@@ -38,6 +63,20 @@ final class BackgroundKeeper {
         player?.stop()
         running = false
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+    }
+
+    // MARK: - 开关（App 里可以关掉，省电）
+
+    private let enabledKey = "xj.keepalive"
+
+    var enabled: Bool {
+        if UserDefaults.standard.object(forKey: enabledKey) == nil { return true }
+        return UserDefaults.standard.bool(forKey: enabledKey)
+    }
+
+    func setEnabled(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: enabledKey)
+        if !on { stop() }
     }
 
     /// 1 秒的静音 WAV：16bit 单声道 8kHz
