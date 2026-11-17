@@ -72,6 +72,9 @@ final class BackgroundKeeper {
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
 
+    /// 给诊断用：现在到底在不在放
+    var isRunning: Bool { running }
+
     // MARK: - 开关（App 里可以关掉，省电）
 
     private let enabledKey = "xj.keepalive"
