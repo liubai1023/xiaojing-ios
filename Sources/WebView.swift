@@ -14,6 +14,7 @@ struct WebView: UIViewRepresentable {
         config.defaultWebpagePreferences.allowsContentJavaScript = true
 
         let handler = WebBridge()
+        WebBridge.current = handler
         config.userContentController.add(handler, name: "native")
         DispatchQueue.main.async { bridge = handler }
 
