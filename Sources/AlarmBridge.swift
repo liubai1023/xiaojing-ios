@@ -54,6 +54,28 @@ final class AlarmBridge: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["xj-alarm-\(id)"])
     }
 
+    /// 提前要权限：等他真收到消息时再弹授权框，系统会在后台弹，体验很怪
+    func requestPermission() {
+        prepare()
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    }
+
+    /// 立刻弹一条（网页收到消息时调，App 在后台也能弹）
+    func notifyNow(title: String, body: String) {
+        prepare()
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title.isEmpty ? "小鲸" : title
+            if !body.isEmpty { content.body = body }
+            content.sound = .default
+            content.badge = 1
+            let request = UNNotificationRequest(identifier: "xj-msg-\(UUID().uuidString)", content: content, trigger: nil)
+            center.add(request)
+        }
+    }
+
     /// App 在前台时也弹横幅 + 响一声
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
