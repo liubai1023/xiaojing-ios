@@ -29,7 +29,13 @@ struct RootView: View {
     @State private var loadFailed = false
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        // 先把地址算成值再进闭包：Settings 是 @MainActor 的，
+        // 在 DispatchQueue / onChange 这类非隔离闭包里直接访问会过不了并发检查
+        let pushesURL = settings.url(for: "/api/app/pushes")
+        let diagURL = settings.url(for: "/api/app/diag")
+        let bootURL = settings.url(for: "/api/app/boot")
+
+        return ZStack(alignment: .bottomTrailing) {
             Color(red: 0.05, green: 0.06, blue: 0.07).ignoresSafeArea()
 
             if settings.isConfigured {
@@ -83,7 +89,7 @@ struct RootView: View {
             BackgroundKeeper.recoverIfNeeded()
             // 起来先 ping 一下电脑：崩没崩、有没有启动成功，这边能看见
             if settings.isConfigured {
-                URLSession.shared.dataTask(with: settings.url(for: "/api/app/boot")).resume()
+                URLSession.shared.dataTask(with: bootURL).resume()
             }
             // 通知授权放在启动之后一秒：启动阶段调通知 API 风险大（11-17 崩过一次）
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -92,7 +98,7 @@ struct RootView: View {
             // 报一下当前通知授权状态，电脑这边能看见（省得靠猜）
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 UNUserNotificationCenter.current().getNotificationSettings { setting in
-                    PushPoller.report(to: settings.url(for: "/api/app/diag"), kind: "permission", extra: [
+                    PushPoller.report(to: diagURL, kind: "permission", extra: [
                         "status": setting.authorizationStatus.rawValue,
                         "alert": setting.alertSetting.rawValue,
                         "sound": setting.soundSetting.rawValue,
@@ -115,7 +121,7 @@ struct RootView: View {
             case .background:
                 if BackgroundKeeper.shared.enabled { BackgroundKeeper.shared.start() }
                 // 网页在后台会被挂起，改由原生接手轮询（见 PushPoller.swift）
-                PushPoller.shared.start(baseURL: settings.url(for: "/api/app/pushes"))
+                PushPoller.shared.start(baseURL: pushesURL)
             @unknown default:
                 break
             }
