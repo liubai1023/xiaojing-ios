@@ -25,33 +25,39 @@ struct RootView: View {
     @State private var showCamera = false
     @State private var picked: PhotosPickerItem?
     @State private var bridge: WebBridge?
+    @State private var loadFailed = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             Color(red: 0.05, green: 0.06, blue: 0.07).ignoresSafeArea()
 
             if settings.isConfigured {
-                WebView(url: settings.url(for: "/"), reloadToken: reloadToken, bridge: $bridge)
-                    .ignoresSafeArea()
+                WebView(url: settings.url(for: "/"), reloadToken: reloadToken, bridge: $bridge) { ok in
+                    loadFailed = !ok
+                }
+                .ignoresSafeArea()
             } else {
                 VStack(spacing: 14) {
                     Image(systemName: "wifi.exclamationmark").font(.largeTitle)
                     Text("还没连上电脑").font(.headline)
-                    Text("点右上角齿轮，填电脑地址和口令").font(.footnote).foregroundStyle(.secondary)
+                    Text("点右下角的图标，填电脑地址和口令").font(.footnote).foregroundStyle(.secondary)
                     Button("现在设置") { showSetup = true }.buttonStyle(.borderedProminent)
                 }
             }
 
-            // 齿轮放右下角，避开顶栏的返回键
-            Button { showSetup = true } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .padding(8)
-                    .background(.ultraThinMaterial, in: Circle())
+            // 齿轮平时收起来：地址/口令在左侧「设置 → 连接小鲸」里改。
+            // 只在还没配好、或者页面压根连不上时露出来，免得改错口令就再也进不去设置。
+            if !settings.isConfigured || loadFailed {
+                Button { showSetup = true } label: {
+                    Image(systemName: loadFailed ? "wifi.exclamationmark" : "gearshape.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .padding(8)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .foregroundStyle(.white.opacity(0.6))
+                .padding(.bottom, 96)
+                .padding(.trailing, 8)
             }
-            .foregroundStyle(.white.opacity(0.6))
-            .padding(.bottom, 96)
-            .padding(.trailing, 8)
         }
         .photosPicker(isPresented: $showPicker, selection: $picked, matching: .images)
         // iOS 16 只有单参数的 onChange；两参数版本是 iOS 17 的
@@ -83,6 +89,7 @@ struct RootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .xjPickPhoto)) { _ in showPicker = true }
         .onReceive(NotificationCenter.default.publisher(for: .xjTakePhoto)) { _ in showCamera = true }
+        .onReceive(NotificationCenter.default.publisher(for: .xjOpenSettings)) { _ in showSetup = true }
         .onChange(of: scenePhase) { phase in
             // 静音保活先关掉：这版只验证能不能正常启动，后台通知下个版本再加
             if phase == .background {
@@ -115,6 +122,7 @@ struct RootView: View {
 extension Notification.Name {
     static let xjPickPhoto = Notification.Name("xj.pickPhoto")
     static let xjTakePhoto = Notification.Name("xj.takePhoto")
+    static let xjOpenSettings = Notification.Name("xj.openSettings")
 }
 
 /// 与网页通信：网页点「＋」通知我们开相册/相机；要位置时去取一次；要排闹钟时交给 AlarmBridge。
@@ -135,6 +143,9 @@ final class WebBridge: NSObject, WKScriptMessageHandler, WKUIDelegate {
             NotificationCenter.default.post(name: .xjPickPhoto, object: nil)
         case "camera":
             NotificationCenter.default.post(name: .xjTakePhoto, object: nil)
+        case "settings":
+            // 左侧「设置 → 连接小鲸」：交给原生弹那张表单
+            NotificationCenter.default.post(name: .xjOpenSettings, object: nil)
         case "location": locator.request()
         case "alarm":
             guard let id = body["id"] as? String,
