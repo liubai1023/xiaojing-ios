@@ -18,6 +18,7 @@ struct XiaojingApp: App {
 
 struct RootView: View {
     @EnvironmentObject var settings: Settings
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showSetup = false
     @State private var reloadToken = UUID()
     @State private var showPicker = false
@@ -74,6 +75,14 @@ struct RootView: View {
             .ignoresSafeArea()
         }
         .onAppear { showSetup = !settings.isConfigured }
+        .onChange(of: scenePhase) { phase in
+            // 切到后台就开静音保活，网页才能继续轮询、才有后台通知
+            if phase == .background {
+                BackgroundKeeper.shared.start()
+            } else {
+                BackgroundKeeper.shared.stop()
+            }
+        }
         .sheet(isPresented: $showSetup) {
             SetupView(isPresented: $showSetup, reloadToken: $reloadToken)
                 .environmentObject(settings)
@@ -119,6 +128,10 @@ final class WebBridge: NSObject, WKScriptMessageHandler, WKUIDelegate {
         case "alarm-cancel":
             guard let id = body["id"] as? String else { return }
             alarms.cancel(id: id)
+        case "notify":
+            let title = (body["title"] as? String) ?? "小鲸"
+            let text = (body["body"] as? String) ?? ""
+            alarms.notifyNow(title: title, body: text)
         default: break
         }
     }
