@@ -6,6 +6,8 @@ struct WebView: UIViewRepresentable {
     let url: URL
     let reloadToken: UUID
     @Binding var bridge: WebBridge?
+    /// 页面加载成功/失败的回调：失败时根视图要露出「改地址」的齿轮
+    var onLoadState: (Bool) -> Void = { _ in }
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -34,6 +36,7 @@ struct WebView: UIViewRepresentable {
         handler.alarms.prepare()
         // 录音权限要靠 uiDelegate 放行，否则网页里 getUserMedia 直接失败
         web.uiDelegate = handler
+        web.navigationDelegate = context.coordinator
         web.load(URLRequest(url: url))
         return web
     }
@@ -46,10 +49,30 @@ struct WebView: UIViewRepresentable {
         }
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator {
+        let coordinator = Coordinator()
+        coordinator.onLoadState = onLoadState
+        return coordinator
+    }
 
-    final class Coordinator {
+    final class Coordinator: NSObject, WKNavigationDelegate {
         var lastStamp = ""
+        var onLoadState: (Bool) -> Void = { _ in }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            onLoadState(true)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            // 取消（比如中途点返回）不算连不上
+            if (error as NSError).code == NSURLErrorCancelled { return }
+            onLoadState(false)
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            if (error as NSError).code == NSURLErrorCancelled { return }
+            onLoadState(false)
+        }
     }
 }
 
