@@ -9,6 +9,10 @@ final class Settings: ObservableObject {
     private let hostKey = "xiaojing.host"
     private let tokenKey = "xiaojing.token"
 
+    /// 两个固定入口：家里局域网 / 出门 Tailscale。连不上时互相兜底用。
+    static let lanHost = "http://192.168.1.107:7788"
+    static let tailscaleHost = "http://100.84.225.64:7788"
+
     init() {
         host = UserDefaults.standard.string(forKey: hostKey) ?? ""
         token = UserDefaults.standard.string(forKey: tokenKey) ?? ""
