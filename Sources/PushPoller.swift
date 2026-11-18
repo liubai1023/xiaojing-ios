@@ -71,8 +71,9 @@ final class PushPoller {
                 newest = max(newest, at)
                 let text = (item["text"] as? String) ?? ""
                 let body = text.isEmpty ? "她发了张图" : text
+                let who = ((item["source"] as? String) == "agent") ? "阿蓝" : "小鲸"
                 DispatchQueue.main.async {
-                    AlarmBridge.shared.notifyNow(title: "小鲸", body: body)
+                    AlarmBridge.shared.notifyNow(title: who, body: body)
                 }
             }
             if newest > self.seen {
