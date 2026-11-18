@@ -94,8 +94,8 @@ struct SetupView: View {
                             return "custom"
                         },
                         set: { mode in
-                            if mode == "lan" { host = "http://192.168.1.107:7788" }
-                            if mode == "tailscale" { host = "http://100.84.225.64:7788" }
+                            if mode == "lan" { host = Settings.lanHost }
+                            if mode == "tailscale" { host = Settings.tailscaleHost }
                         }
                     )) {
                         Text("家里·局域网").tag("lan")
