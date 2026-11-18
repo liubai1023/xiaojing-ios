@@ -27,6 +27,10 @@ struct RootView: View {
     @State private var picked: PhotosPickerItem?
     @State private var bridge: WebBridge?
     @State private var loadFailed = false
+    /// 每换一次地址/重载就 +1，旧的那次超时作废，免得晚到的计时器把好好的页面误判成断线
+    @State private var watchdogGen = 0
+    /// 这次启动已经自动换过一次地址了：只兜底一次，别再两个地址之间来回弹
+    @State private var triedAltHost = false
 
     var body: some View {
         // 先把地址算成值再进闭包：Settings 是 @MainActor 的，
@@ -40,6 +44,7 @@ struct RootView: View {
 
             if settings.isConfigured {
                 WebView(url: settings.url(for: "/"), reloadToken: reloadToken, bridge: $bridge) { ok in
+                    if ok { watchdogGen += 1 }  // 页面出来了，撤掉这次超时
                     loadFailed = !ok
                 }
                 .ignoresSafeArea()
@@ -52,19 +57,17 @@ struct RootView: View {
                 }
             }
 
-            // 齿轮平时收起来：地址/口令在左侧「设置 → 连接小鲸」里改。
-            // 只在还没配好、或者页面压根连不上时露出来，免得改错口令就再也进不去设置。
-            if !settings.isConfigured || loadFailed {
-                Button { showSetup = true } label: {
-                    Image(systemName: loadFailed ? "wifi.exclamationmark" : "gearshape.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .padding(8)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .foregroundStyle(.white.opacity(0.6))
-                .padding(.bottom, 96)
-                .padding(.trailing, 8)
+            // 齿轮常驻：黑屏/白屏/口令错了这些「页面看着没事其实没连上」的情况，
+            // 靠 loadFailed 判断不出来，必须留一个随时能进设置的按钮。平时压到很淡，不挡视线。
+            Button { showSetup = true } label: {
+                Image(systemName: loadFailed ? "wifi.exclamationmark" : "gearshape.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .padding(8)
+                    .background(.ultraThinMaterial, in: Circle())
             }
+            .foregroundStyle(.white.opacity(loadFailed ? 0.9 : 0.28))
+            .padding(.bottom, 96)
+            .padding(.trailing, 8)
         }
         .photosPicker(isPresented: $showPicker, selection: $picked, matching: .images)
         // iOS 16 只有单参数的 onChange；两参数版本是 iOS 17 的
@@ -85,6 +88,7 @@ struct RootView: View {
         }
         .onAppear {
             showSetup = !settings.isConfigured
+            armWatchdog()
             // 上一次保活没能确认活下来（崩了）就自动关掉，别让 App 再也打不开
             BackgroundKeeper.recoverIfNeeded()
             // 起来先 ping 一下电脑：崩没崩、有没有启动成功，这边能看见
@@ -107,6 +111,7 @@ struct RootView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .xjPickPhoto)) { _ in showPicker = true }
+        .onChange(of: reloadToken) { _ in armWatchdog() }
         .onReceive(NotificationCenter.default.publisher(for: .xjTakePhoto)) { _ in showCamera = true }
         .onReceive(NotificationCenter.default.publisher(for: .xjOpenSettings)) { _ in showSetup = true }
         .onChange(of: scenePhase) { phase in
@@ -120,6 +125,9 @@ struct RootView: View {
                 if BackgroundKeeper.shared.enabled { BackgroundKeeper.shared.start() }
             case .background:
                 if BackgroundKeeper.shared.enabled { BackgroundKeeper.shared.start() }
+                // 后台通知靠这两条腿：保活（静音音频）不让进程被挂起 + 原生轮询。
+                // 只开轮询不开保活，几秒后就被系统冻住，等于没有通知。
+                BackgroundKeeper.shared.start()
                 // 网页在后台会被挂起，改由原生接手轮询（见 PushPoller.swift）
                 PushPoller.shared.start(baseURL: pushesURL)
             @unknown default:
@@ -129,6 +137,35 @@ struct RootView: View {
         .sheet(isPresented: $showSetup) {
             SetupView(isPresented: $showSetup, reloadToken: $reloadToken)
                 .environmentObject(settings)
+        }
+    }
+
+    /// 十秒还没把页面交出来，就当没连上，把齿轮亮起来，并且自动换另一个地址再试一次。
+    /// 有时候地址是死的但 WKWebView 一直转圈、回调不来，光靠 didFail 抓不到。
+    private func armWatchdog() {
+        watchdogGen += 1
+        let gen = watchdogGen
+        let host = settings.host
+        let token = settings.token
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            guard gen == watchdogGen else { return }
+            loadFailed = true
+            // 存的还是家里地址 / 出门地址，却连不上：自动换另一边，别让人卡在黑屏里没处点
+            guard !triedAltHost else { return }
+            let alt: String?
+            if host.contains("192.168.") || host.contains("172.") {
+                alt = Settings.tailscaleHost
+            } else if host.contains("100.") {
+                alt = Settings.lanHost
+            } else {
+                alt = nil
+            }
+            guard let alt else { return }
+            triedAltHost = true
+            Task { @MainActor in
+                settings.save(host: alt, token: token)
+                reloadToken = UUID()
+            }
         }
     }
 
